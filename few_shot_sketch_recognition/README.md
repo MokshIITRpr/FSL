@@ -28,17 +28,38 @@ This framework addresses the **FSUGR-2** problem: designing a few-shot sketch re
 
 ### 1. Installation
 
+**Step 1: Navigate to the project**
 ```bash
-# Clone or navigate to the project directory
 cd few_shot_sketch_recognition
+```
 
-# Create virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+**Step 2: Create a Virtual Environment (HIGHLY RECOMMENDED)**
 
-# Install dependencies
+Using a virtual environment keeps dependencies isolated and prevents conflicts:
+
+```bash
+# Create virtual environment (one-time setup)
+python3 -m venv venv
+
+# Activate it (do this every time you work on the project)
+source venv/bin/activate  # On macOS/Linux
+# OR on Windows: venv\Scripts\activate
+```
+
+You'll know it's activated when you see `(venv)` in your terminal prompt.
+
+**Step 3: Install Dependencies**
+```bash
+# Install all required packages (only affects the virtual environment)
 pip install -r requirements.txt
 ```
+
+**Important Notes**:
+- ✅ Virtual environment keeps packages isolated (recommended)
+- ✅ You can delete the `venv` folder anytime to start fresh
+- ✅ Always activate the venv before running scripts: `source venv/bin/activate`
+- ✅ To exit the virtual environment: `deactivate`
+- ❌ Installing system-wide (without venv) works but may cause conflicts
 
 ### 2. Download Datasets
 

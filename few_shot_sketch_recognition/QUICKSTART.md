@@ -12,9 +12,31 @@ This guide will help you get started with the Few-Shot Sketch Recognition Framew
 
 ### 1. Install Dependencies (1 minute)
 
+**Recommended: Use a Virtual Environment** to keep dependencies isolated:
+
+```bash
+cd few_shot_sketch_recognition
+
+# Create virtual environment (one-time setup)
+python3 -m venv venv
+
+# Activate it
+source venv/bin/activate  # On macOS/Linux
+# OR on Windows: venv\Scripts\activate
+
+# Install requirements in the virtual environment
+pip install -r requirements.txt
+```
+
+**Alternative: Install directly** (not recommended, but works):
 ```bash
 cd few_shot_sketch_recognition
 pip install -r requirements.txt
+```
+
+**Note**: Always remember to activate the virtual environment before running scripts:
+```bash
+source venv/bin/activate  # Run this each time you open a new terminal
 ```
 
 ### 2. Download Dataset (5-10 minutes)

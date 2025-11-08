@@ -40,8 +40,11 @@ def download_tuberlin(root_dir, extract=True):
     """
     Download TU-Berlin sketch dataset.
     
-    The dataset is available at:
-    http://cybertron.cg.tu-berlin.de/eitz/projects/classifysketch/sketches_png.zip
+    Note:
+        The original TU‑Berlin hosting endpoint has moved several times over the
+        years and may intermittently return HTTP 404. When this happens, use one
+        of the mirrors (e.g., Kaggle) or download manually, then place the files
+        into the expected directory structure described below.
     
     Args:
         root_dir (str): Directory to download and extract to
@@ -50,7 +53,7 @@ def download_tuberlin(root_dir, extract=True):
     root_path = Path(root_dir)
     root_path.mkdir(parents=True, exist_ok=True)
     
-    # Dataset URL
+    # Historical URL (may be 404 if the TU‑Berlin server is down or moved)
     url = "http://cybertron.cg.tu-berlin.de/eitz/projects/classifysketch/sketches_png.zip"
     zip_path = root_path / "sketches_png.zip"
     
