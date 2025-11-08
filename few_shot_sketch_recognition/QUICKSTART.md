@@ -80,7 +80,6 @@ python train_few_shot.py \
     --epochs 5 \
     --n_train_episodes 100 \
     --checkpoint_dir checkpoints/test_fs
-
 # Evaluate
 python evaluate.py \
     --dataset tuberlin \

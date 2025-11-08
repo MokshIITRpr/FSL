@@ -36,32 +36,121 @@ def download_url(url, output_path):
                                   reporthook=t.update_to)
 
 
-def download_tuberlin(root_dir, extract=True):
+def download_tuberlin(root_dir, extract=True, use_kaggle=True):
     """
-    Download TU-Berlin sketch dataset.
+    Download TU-Berlin sketch dataset from Kaggle or original source.
+    
+    This function attempts to download the TU-Berlin dataset. By default, it tries
+    Kaggle first (requires API credentials), then falls back to the original URL.
     
     Note:
-        The original TU‑Berlin hosting endpoint has moved several times over the
-        years and may intermittently return HTTP 404. When this happens, use one
-        of the mirrors (e.g., Kaggle) or download manually, then place the files
-        into the expected directory structure described below.
+        To use Kaggle API, you need to:
+        1. Install kaggle package: pip install kaggle
+        2. Get your API credentials from https://www.kaggle.com/settings
+        3. Place kaggle.json in ~/.kaggle/ directory
+        4. Set permissions: chmod 600 ~/.kaggle/kaggle.json
     
     Args:
         root_dir (str): Directory to download and extract to
         extract (bool): Whether to extract after downloading
+        use_kaggle (bool): If True, try Kaggle first; if False, try original URL first
     """
     root_path = Path(root_dir)
     root_path.mkdir(parents=True, exist_ok=True)
     
-    # Historical URL (may be 404 if the TU‑Berlin server is down or moved)
-    url = "http://cybertron.cg.tu-berlin.de/eitz/projects/classifysketch/sketches_png.zip"
-    zip_path = root_path / "sketches_png.zip"
+    # Kaggle dataset identifier
+    kaggle_dataset = "rishikashili/tuberlin"
     
-    print(f"Downloading TU-Berlin dataset to {zip_path}...")
+    # Original URL (fallback)
+    original_url = "http://cybertron.cg.tu-berlin.de/eitz/projects/classifysketch/sketches_png.zip"
+    
+    print(f"Downloading TU-Berlin dataset to {root_path}...")
     print("Note: This is a large file (~1.5GB) and may take some time.")
     
+    # Strategy 1: Try Kaggle first if use_kaggle is True
+    if use_kaggle:
+        try:
+            import kaggle
+            from kaggle.api.kaggle_api_extended import KaggleApi
+            
+            print("\n[Method 1] Attempting to download from Kaggle...")
+            print(f"Dataset: https://www.kaggle.com/datasets/{kaggle_dataset}")
+            
+            # Initialize Kaggle API
+            api = KaggleApi()
+            api.authenticate()
+            
+            # Create a temporary directory for download
+            temp_download_dir = root_path / ".kaggle_download"
+            temp_download_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Download dataset
+            print(f"Downloading dataset: {kaggle_dataset}")
+            api.dataset_download_files(
+                kaggle_dataset,
+                path=str(temp_download_dir),
+                unzip=True,  # Always unzip from Kaggle
+                quiet=False
+            )
+            
+            # Move files from temp directory to root_path
+            # Kaggle typically creates a subdirectory with the dataset name
+            downloaded_dirs = [d for d in temp_download_dir.iterdir() if d.is_dir()]
+            downloaded_files = [f for f in temp_download_dir.iterdir() if f.is_file()]
+            
+            # Move directories and files to root_path
+            for item in downloaded_dirs:
+                # Check if directory already exists in root_path
+                dest = root_path / item.name
+                if dest.exists():
+                    # Merge contents
+                    for src_file in item.rglob("*"):
+                        if src_file.is_file():
+                            rel_path = src_file.relative_to(item)
+                            dest_file = dest / rel_path
+                            dest_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.move(str(src_file), str(dest_file))
+                else:
+                    shutil.move(str(item), str(dest))
+            
+            for item in downloaded_files:
+                shutil.move(str(item), str(root_path / item.name))
+            
+            # Clean up temp directory
+            if temp_download_dir.exists():
+                shutil.rmtree(temp_download_dir)
+            
+            # Clean up any remaining zip files
+            zip_files = list(root_path.glob("*.zip"))
+            for zip_file in zip_files:
+                zip_file.unlink()
+                print(f"Cleaned up {zip_file.name}")
+            
+            print(f"\n✓ Dataset downloaded successfully from Kaggle to: {root_path}")
+            return
+            
+        except ImportError:
+            print("\n⚠ Kaggle package not installed. Trying alternative method...")
+            # Continue to fallback method
+        except Exception as e:
+            error_msg = str(e)
+            print(f"\n⚠ Failed to download from Kaggle: {error_msg}")
+            
+            # Check for authentication issues
+            if "403" in error_msg or "401" in error_msg or "authentication" in error_msg.lower():
+                print("Authentication error - trying fallback method...")
+            elif "404" in error_msg or "not found" in error_msg.lower():
+                print("Dataset not found on Kaggle - trying fallback method...")
+            else:
+                print("Unexpected error - trying fallback method...")
+    
+    # Strategy 2: Try original URL as fallback
+    zip_path = root_path / "sketches_png.zip"
+    print(f"\n[Method 2] Attempting to download from original source...")
+    print(f"URL: {original_url}")
+    
     try:
-        download_url(url, str(zip_path))
+        download_url(original_url, str(zip_path))
         print("Download complete!")
         
         if extract:
@@ -73,12 +162,37 @@ def download_tuberlin(root_dir, extract=True):
             # Remove zip file to save space
             zip_path.unlink()
             print("Cleaned up zip file.")
-            
+        
+        print(f"\n✓ Dataset downloaded successfully from original source to: {root_path}")
+        return
+        
     except Exception as e:
-        print(f"Error downloading TU-Berlin dataset: {e}")
-        print("\nPlease download manually from:")
-        print("http://cybertron.cg.tu-berlin.de/eitz/projects/classifysketch/sketches_png.zip")
-        print(f"And extract to: {root_path}")
+        print(f"\n✗ Failed to download from original source: {e}")
+        
+        # If zip file was partially downloaded, clean it up
+        if zip_path.exists():
+            zip_path.unlink()
+    
+    # If both methods failed, provide manual instructions
+    print("\n" + "="*60)
+    print("ERROR: All download methods failed!")
+    print("="*60)
+    print("\nPlease download manually using one of these options:")
+    print("\nOption 1: Kaggle (Recommended)")
+    print(f"  1. Visit: https://www.kaggle.com/datasets/{kaggle_dataset}")
+    print("  2. Click 'Download' button (requires Kaggle account)")
+    print("  3. Extract the zip file to:", root_path)
+    print("\nOption 2: Set up Kaggle API")
+    print("  1. Install: pip install kaggle")
+    print("  2. Get API token from: https://www.kaggle.com/settings")
+    print("  3. Place kaggle.json in ~/.kaggle/")
+    print("  4. Set permissions: chmod 600 ~/.kaggle/kaggle.json")
+    print("  5. Run this script again")
+    print("\nOption 3: Original source")
+    print(f"  URL: {original_url}")
+    print(f"  Extract to: {root_path}")
+    print("="*60)
+    raise Exception("Failed to download TU-Berlin dataset from all available sources")
 
 
 def download_quickdraw(root_dir, categories=None, max_categories=50):
