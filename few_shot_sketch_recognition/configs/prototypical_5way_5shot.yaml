@@ -1,0 +1,32 @@
+# Configuration for Prototypical Networks (5-way 5-shot)
+
+# Dataset configuration
+dataset: tuberlin
+data_root: data/tuberlin
+train_classes: 200
+
+# Model configuration
+encoder: sketch_cnn
+few_shot_model: prototypical
+embedding_dim: 512
+distance_metric: euclidean
+pretrained_encoder: checkpoints/ssl/simclr_tuberlin/best_model.pth
+
+# Few-shot configuration
+n_way: 5
+n_shot: 5
+n_query: 15
+n_train_episodes: 1000
+n_val_episodes: 200
+n_test_episodes: 600
+
+# Training configuration
+epochs: 100
+lr: 0.001
+weight_decay: 0.0001
+image_size: 224
+
+# System configuration
+device: cuda
+checkpoint_dir: checkpoints/few_shot/prototypical_5way_5shot
+
