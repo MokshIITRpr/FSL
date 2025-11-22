@@ -1,0 +1,13 @@
+============================================================
+EVALUATION RESULTS
+============================================================
+Configuration: 5-way 5-shot
+Model: prototypical
+Encoder: sketch_cnn
+Checkpoint: checkpoints/few_shot/prototypical_fixed/best_model.pth
+Episodes evaluated: 600
+------------------------------------------------------------
+Mean Accuracy: 0.8791 (87.91%)
+Std Accuracy: 0.0716
+95% Confidence Interval: ±0.0057
+============================================================

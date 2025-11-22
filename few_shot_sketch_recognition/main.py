@@ -220,7 +220,8 @@ Examples:
     pipeline_parser.add_argument('--ssl_method', type=str, default='simclr')
     pipeline_parser.add_argument('--few_shot_model', type=str, default='prototypical')
     pipeline_parser.add_argument('--pretrained_encoder', type=str, default=None)
-    pipeline_parser.add_argument('--batch_size', type=int, default=128)
+    pipeline_parser.add_argument('--batch_size', type=int, default=32,
+                                help='Batch size (use 32 for ResNet50, 64-128 for smaller models)')
     pipeline_parser.add_argument('--ssl_epochs', type=int, default=100)
     pipeline_parser.add_argument('--ssl_lr', type=float, default=0.001)
     pipeline_parser.add_argument('--fs_epochs', type=int, default=50)

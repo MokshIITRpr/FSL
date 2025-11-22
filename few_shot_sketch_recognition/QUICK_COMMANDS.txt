@@ -1,0 +1,205 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                   QUICK COMMAND REFERENCE                            ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════
+SINGLE COMMAND - RUN EVERYTHING
+═══════════════════════════════════════════════════════════════════════
+
+# Start training in tmux (RECOMMENDED):
+tmux new -s training "bash run_full_retraining.sh"
+
+# Then detach: Press Ctrl+B, then D
+# Come back later: tmux attach -t training
+
+
+═══════════════════════════════════════════════════════════════════════
+ALTERNATIVE OPTIONS
+═══════════════════════════════════════════════════════════════════════
+
+Option 1: tmux (Best - Full control)
+────────────────────────────────────
+tmux new -s training
+bash run_full_retraining.sh
+# Detach: Ctrl+B, then D
+# Reattach: tmux attach -t training
+
+
+Option 2: screen (Alternative to tmux)
+──────────────────────────────────────
+screen -S training
+bash run_full_retraining.sh
+# Detach: Ctrl+A, then D
+# Reattach: screen -r training
+
+
+Option 3: nohup (Simplest - Background)
+───────────────────────────────────────
+nohup bash run_full_retraining.sh > training.log 2>&1 &
+# Check progress: tail -f training.log
+
+
+═══════════════════════════════════════════════════════════════════════
+MONITORING & CHECKING PROGRESS
+═══════════════════════════════════════════════════════════════════════
+
+Check if training is running:
+────────────────────────────
+tmux ls                              # List tmux sessions
+ps aux | grep python                 # Check Python processes
+nvidia-smi                           # Check GPU usage
+
+
+Reattach to session:
+───────────────────
+tmux attach -t training              # Reattach to tmux
+screen -r training                   # Reattach to screen
+
+
+View logs in real-time:
+──────────────────────
+tail -f logs/ssl/ssl_training.log
+tail -f logs/few_shot/few_shot_training.log
+tail -f training.log                 # If using nohup
+
+
+Check results after completion:
+───────────────────────────────
+cat results_fixed/results_5way_5shot.txt
+
+
+═══════════════════════════════════════════════════════════════════════
+WHAT THE SCRIPT DOES
+═══════════════════════════════════════════════════════════════════════
+
+1. SSL Training (100 epochs, ~2-3 hours)
+   - Batch size: 128 (was 32)
+   - Temperature: 0.07 (was 0.5)
+   - Saves to: checkpoints/ssl/simclr_fixed/
+
+2. Verify SSL Training
+   - Checks if loss decreased properly
+   - Stops if training failed
+
+3. Few-Shot Training (50 epochs, ~30-45 minutes)
+   - Uses the new SSL checkpoint
+   - Saves to: checkpoints/few_shot/prototypical_fixed/
+
+4. Evaluation (600 episodes, ~5 minutes)
+   - Tests on unseen classes
+   - Saves to: results_fixed/
+
+
+═══════════════════════════════════════════════════════════════════════
+EXPECTED RESULTS
+═══════════════════════════════════════════════════════════════════════
+
+SSL Training:
+  Loss: 8.0 → 6.0 → 3.0 → 2.0 (should decrease!)
+  Time: 2-3 hours
+
+Few-Shot Training:
+  Accuracy: 20% → 40% → 55% → 65-70%
+  Time: 30-45 minutes
+
+Final Accuracy: 65-70% (not 20%!)
+
+
+═══════════════════════════════════════════════════════════════════════
+RECOMMENDED WORKFLOW
+═══════════════════════════════════════════════════════════════════════
+
+Step 1: Start training in tmux
+──────────────────────────────
+cd /home/dhruv/prashantAi/FSL/few_shot_sketch_recognition
+tmux new -s training
+bash run_full_retraining.sh
+
+
+Step 2: Detach (training continues)
+───────────────────────────────────
+Press: Ctrl+B, then D
+
+
+Step 3: Close laptop, go do something else
+──────────────────────────────────────────
+Training runs on server for ~3-4 hours
+
+
+Step 4: Come back later
+──────────────────────
+ssh user@server
+tmux attach -t training
+
+
+Step 5: Check results
+────────────────────
+cat results_fixed/results_5way_5shot.txt
+ls results_fixed/episode_*.png
+
+
+═══════════════════════════════════════════════════════════════════════
+TMUX QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════
+
+Start session:       tmux new -s training
+Detach:             Ctrl+B, then D
+List sessions:      tmux ls
+Reattach:           tmux attach -t training
+Kill session:       tmux kill-session -t training
+
+Split vertical:     Ctrl+B, then %
+Split horizontal:   Ctrl+B, then "
+Navigate panes:     Ctrl+B, then arrow keys
+Scroll up:          Ctrl+B, then [, then arrow keys
+Exit scroll:        q
+
+
+═══════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════
+
+Training stopped unexpectedly:
+─────────────────────────────
+tail -100 logs/ssl/ssl_training.log
+grep -i error logs/ssl/ssl_training.log
+
+
+Can't find tmux session:
+───────────────────────
+tmux ls                              # List all sessions
+ps aux | grep python                 # Check if training is running
+
+
+Out of memory:
+─────────────
+# Edit run_full_retraining.sh
+# Change batch size from 128 to 64
+# Add: --gradient_accumulation_steps 2
+
+
+═══════════════════════════════════════════════════════════════════════
+COPY-PASTE COMMANDS
+═══════════════════════════════════════════════════════════════════════
+
+# Navigate to directory
+cd /home/dhruv/prashantAi/FSL/few_shot_sketch_recognition
+
+# Start training in tmux (COPY THIS!)
+tmux new -s training "bash run_full_retraining.sh"
+
+# Detach: Press Ctrl+B, then D
+
+# Later, check progress (COPY THIS!)
+tmux attach -t training
+
+# View results (COPY THIS!)
+cat results_fixed/results_5way_5shot.txt
+
+
+═══════════════════════════════════════════════════════════════════════
+
+For detailed instructions, see: TMUX_GUIDE.md
+
+═══════════════════════════════════════════════════════════════════════
+
