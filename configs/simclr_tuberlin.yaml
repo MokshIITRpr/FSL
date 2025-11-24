@@ -1,0 +1,26 @@
+# Configuration for SimCLR pretraining on TU-Berlin dataset
+
+# Dataset configuration
+dataset: tuberlin
+data_root: data/tuberlin
+train_classes: 200  # Use 200 classes for training, 50 for testing
+
+# Model configuration
+encoder: sketch_cnn
+ssl_method: simclr
+embedding_dim: 512
+projection_dim: 128
+temperature: 0.5
+
+# Training configuration
+batch_size: 128
+epochs: 200
+lr: 0.001
+weight_decay: 0.0001
+image_size: 224
+
+# System configuration
+num_workers: 4
+device: cuda
+checkpoint_dir: checkpoints/ssl/simclr_tuberlin
+
