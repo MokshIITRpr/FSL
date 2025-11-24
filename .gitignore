@@ -3,6 +3,7 @@ venv/
 env/
 ENV/
 .venv/
+.gitignore
 
 # Python
 __pycache__/
@@ -16,6 +17,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+data/
 eggs/
 .eggs/
 lib/
