@@ -47,7 +47,6 @@ wheels/
 # Project specific
 checkpoints/
 logs/
-results/
 *.log
 
 # OS

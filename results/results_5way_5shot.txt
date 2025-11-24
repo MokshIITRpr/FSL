@@ -1,0 +1,13 @@
+============================================================
+EVALUATION RESULTS
+============================================================
+Configuration: 5-way 5-shot
+Model: prototypical
+Encoder: resnet50
+Checkpoint: checkpoints/few_shot/best_model.pth
+Episodes evaluated: 100
+------------------------------------------------------------
+Mean Accuracy: 0.9375 (93.75%)
+Std Accuracy: 0.0461
+95% Confidence Interval: ±0.0090
+============================================================
