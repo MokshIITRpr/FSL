@@ -45,7 +45,6 @@ wheels/
 *~
 
 # Project specific
-checkpoints/
 logs/
 *.log
 
