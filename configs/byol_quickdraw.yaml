@@ -3,7 +3,7 @@
 # Dataset configuration
 dataset: quickdraw
 data_root: data/quickdraw
-categories: 50  # Use 50 categories
+categories: 200  # Use 200 categories
 
 # Model configuration
 encoder: resnet18

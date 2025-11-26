@@ -81,6 +81,8 @@ python train_few_shot.py \
     --n_train_episodes 100 \
     --checkpoint_dir checkpoints/test_fs
 # Evaluate
+
+# Using Tuberlin
 python evaluate.py \
     --dataset tuberlin \
     --data_root data/tuberlin \
@@ -91,9 +93,25 @@ python evaluate.py \
     --n_shot 5 \
     --n_episodes 50 \
     --visualize
+
+# Using qucikdraw
+
+python evaluate.py \
+  --dataset quickdraw \
+  --data_root data/quickdraw \
+  --checkpoint checkpoints/few_shot/best_model.pth \
+  --encoder resnet50 \
+  --few_shot_model prototypical \
+  --embedding_dim 512 \
+  --n_way 5 \
+  --n_shot 5 \
+  --n_query 15 \
+  --n_episodes 100 \
+  --output_dir results_quickdraw
+
 ```
 
-### 4. Full Training Pipeline (30-60 minutes on GPU)
+### 4. Full Training Pipeline (Use GPU)
 
 Once everything works, run the full pipeline:
 

@@ -11,6 +11,7 @@ import time
 import math
 import random
 import argparse
+import json
 import logging
 from tqdm import tqdm
 
@@ -21,6 +22,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import warnings
+from pathlib import Path
 
 from models.backbone import get_encoder
 from models.few_shot import get_few_shot_model
@@ -133,6 +135,14 @@ def parse_args():
                        help='Path to dataset root directory')
     parser.add_argument('--train_classes', type=int, default=200,
                        help='Number of classes for training (rest for testing)')
+    parser.add_argument('--quickdraw_categories', type=str, default=None,
+                       help='Comma-separated list of QuickDraw categories to use (default: all)')
+    parser.add_argument('--quickdraw_max_samples', type=int, default=10000,
+                       help='Max samples per QuickDraw category per split')
+    parser.add_argument('--quickdraw_class_split', type=str, default=None,
+                       help='Comma separated class counts for train,val,test (e.g., "70,18,21")')
+    parser.add_argument('--quickdraw_split_seed', type=int, default=42,
+                       help='Random seed for QuickDraw class split shuffling')
     
     # Model arguments
     parser.add_argument('--encoder', type=str, default='sketch_cnn',
@@ -199,6 +209,8 @@ def parse_args():
                        help='Directory to save evaluation results')
     parser.add_argument('--eval_shots', type=str, default='1,2,3,4,5',
                        help='Comma-separated list of shot counts to evaluate at test time')
+    parser.add_argument('--save_every_epoch', action='store_true',
+                       help='Save a checkpoint at the end of every epoch')
     
     return parser.parse_args()
 
@@ -297,13 +309,13 @@ def train_epoch(model, train_sampler, device, optimizer, criterion, scaler, max_
         # Update progress bar
         pbar.set_postfix({
             'loss': f'{loss_meter.avg:.4f}', 
-            'acc': f'{accuracy_meter.avg:.2f}%',
+            'acc': f'{accuracy_meter.avg * 100:.2f}%',
             'lr': f'{optimizer.param_groups[0]["lr"]:.2e}'
         })
     
     # Log detailed metrics at the end of the epoch
     logger.info(f'Epoch {epoch} [Train] - Loss: {loss_meter.avg:.4f}, '
-                f'Accuracy: {accuracy_meter.avg:.2f}%, '
+                f'Accuracy: {accuracy_meter.avg * 100:.2f}%, '
                 f'LR: {optimizer.param_groups[0]["lr"]:.2e}')
     
     # Log to TensorBoard if available
@@ -379,12 +391,12 @@ def validate(model, val_sampler, device, criterion, epoch, logger, scaler=None):
             if (batch_idx + 1) % max(1, len(val_sampler) // 10) == 0 or (batch_idx + 1) == len(val_sampler):
                 pbar.set_postfix({
                     'loss': f'{loss_meter.avg:.4f}',
-                    'acc': f'{accuracy_meter.avg:.2f}%'
+                    'acc': f'{accuracy_meter.avg * 100:.2f}%'
                 })
     
     # Log detailed validation metrics
     logger.info(f'Epoch {epoch} [Val] - Loss: {loss_meter.avg:.4f}, '
-                f'Accuracy: {accuracy_meter.avg:.2f}%')
+                f'Accuracy: {accuracy_meter.avg * 100:.2f}%')
     
     # Log to TensorBoard if available
     if hasattr(logger, 'add_scalar'):
@@ -426,12 +438,40 @@ def main():
     train_transform = get_sketch_transforms('train', args.image_size, args.augmentation_strength)
     val_transform = get_sketch_transforms('val', args.image_size)
     
+    dataset_kwargs = {}
+    if args.dataset.lower() == 'tuberlin':
+        dataset_kwargs['train_classes'] = args.train_classes
+    elif args.dataset.lower() == 'quickdraw':
+        if args.quickdraw_categories:
+            dataset_kwargs['categories'] = [
+                cat.strip() for cat in args.quickdraw_categories.split(',')
+                if cat.strip()
+            ]
+        dataset_kwargs['max_samples_per_category'] = args.quickdraw_max_samples
+        if args.quickdraw_class_split:
+            try:
+                split_counts = [
+                    int(part.strip()) for part in args.quickdraw_class_split.split(',')
+                    if part.strip()
+                ]
+                if len(split_counts) != 3:
+                    raise ValueError
+            except ValueError:
+                raise ValueError('--quickdraw_class_split must be formatted as train,val,test (e.g., "70,18,21")')
+            dataset_kwargs['class_split'] = tuple(split_counts)
+            dataset_kwargs['split_seed'] = args.quickdraw_split_seed
+        else:
+            dataset_kwargs['class_split'] = None
+            dataset_kwargs['split_seed'] = args.quickdraw_split_seed
+    else:
+        dataset_kwargs = {}
+    
     train_dataset = get_dataset(
         args.dataset,
         args.data_root,
         split='train',
         transform=train_transform,
-        train_classes=args.train_classes
+        **dataset_kwargs
     )
     
     val_dataset = get_dataset(
@@ -439,7 +479,7 @@ def main():
         args.data_root,
         split='val',
         transform=val_transform,
-        train_classes=args.train_classes
+        **dataset_kwargs
     )
     
     test_dataset = get_dataset(
@@ -447,7 +487,7 @@ def main():
         args.data_root,
         split='test',
         transform=val_transform,
-        train_classes=args.train_classes
+        **dataset_kwargs
     )
     
     logger.info(f'Train classes: {len(train_dataset.classes)}')
@@ -621,8 +661,8 @@ def main():
         current_lr = optimizer.param_groups[0]['lr']
         logger.info(f'Epoch {epoch} Summary:')
         logger.info(f'  Learning Rate: {current_lr:.6e}')
-        logger.info(f'  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
-        logger.info(f'  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+        logger.info(f'  Train Loss: {train_loss:.4f}, Train Acc: {train_acc * 100:.2f}%')
+        logger.info(f'  Val Loss: {val_loss:.4f}, Val Acc: {val_acc * 100:.2f}%')
         
         # Log to TensorBoard if available
         if hasattr(logger, 'add_scalar'):
@@ -640,7 +680,7 @@ def main():
         if is_best:
             best_val_acc = val_acc
         
-        if epoch % 5 == 0 or is_best:
+        if args.save_every_epoch or epoch % 5 == 0 or is_best:
             state = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -663,8 +703,10 @@ def main():
     # Final evaluation on test set (+ multi-shot sweep)
     logger.info('Evaluating on test set...')
     # Always evaluate at training shot as baseline
-    base_test_loss, base_test_acc = validate(model, test_sampler, device, args.epochs, logger)
-    logger.info(f'Test Accuracy (n_shot={args.n_shot}): {base_test_acc:.4f}')
+    base_test_loss, base_test_acc = validate(
+        model, test_sampler, device, criterion, args.epochs, logger
+    )
+    logger.info(f'Test Accuracy (n_shot={args.n_shot}): {base_test_acc * 100:.2f}%')
 
     # Prepare results directory and metadata
     results_root = Path(args.results_dir)
@@ -725,7 +767,7 @@ def main():
     logger.info(f'Saved summary to {summary_path}')
 
     logger.info('Training complete!')
-    logger.info(f'Best validation accuracy: {best_val_acc:.4f}')
+    logger.info(f'Best validation accuracy: {best_val_acc * 100:.2f}%')
 
 
 if __name__ == '__main__':

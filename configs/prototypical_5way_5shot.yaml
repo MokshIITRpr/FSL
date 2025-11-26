@@ -6,7 +6,7 @@ data_root: data/tuberlin
 train_classes: 200
 
 # Model configuration
-encoder: sketch_cnn
+encoder: sketch_cnn/resnet18/resnet34/resnet50
 few_shot_model: prototypical
 embedding_dim: 512
 distance_metric: euclidean

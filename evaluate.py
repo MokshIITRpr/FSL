@@ -36,6 +36,14 @@ def parse_args():
                        help='Path to dataset root directory')
     parser.add_argument('--train_classes', type=int, default=200,
                        help='Number of classes used for training')
+    parser.add_argument('--quickdraw_categories', type=str, default=None,
+                       help='Comma separated list of QuickDraw categories (default: all)')
+    parser.add_argument('--quickdraw_max_samples', type=int, default=10000,
+                       help='Max samples per QuickDraw category per split')
+    parser.add_argument('--quickdraw_class_split', type=str, default=None,
+                       help='Comma separated class counts for train,val,test (e.g., "70,18,21")')
+    parser.add_argument('--quickdraw_split_seed', type=int, default=42,
+                       help='Random seed for QuickDraw class split shuffling')
     
     # Model arguments
     parser.add_argument('--checkpoint', type=str, required=True,
@@ -165,12 +173,37 @@ def main():
     logger.info(f'Loading test dataset from {args.data_root}')
     test_transform = get_sketch_transforms('test', args.image_size)
     
+    dataset_kwargs = {}
+    if args.dataset.lower() == 'tuberlin':
+        dataset_kwargs['train_classes'] = args.train_classes
+    elif args.dataset.lower() == 'quickdraw':
+        if args.quickdraw_categories:
+            dataset_kwargs['categories'] = [
+                cat.strip() for cat in args.quickdraw_categories.split(',')
+                if cat.strip()
+            ]
+        dataset_kwargs['max_samples_per_category'] = args.quickdraw_max_samples
+        if args.quickdraw_class_split:
+            try:
+                split_counts = [
+                    int(part.strip()) for part in args.quickdraw_class_split.split(',')
+                    if part.strip()
+                ]
+                if len(split_counts) != 3:
+                    raise ValueError
+            except ValueError:
+                raise ValueError('--quickdraw_class_split must be formatted as train,val,test (e.g., "70,18,21")')
+            dataset_kwargs['class_split'] = tuple(split_counts)
+            dataset_kwargs['split_seed'] = args.quickdraw_split_seed
+        else:
+            dataset_kwargs['class_split'] = None
+            dataset_kwargs['split_seed'] = args.quickdraw_split_seed
     test_dataset = get_dataset(
         args.dataset,
         args.data_root,
         split='test',
         transform=test_transform,
-        train_classes=args.train_classes
+        **dataset_kwargs
     )
     
     logger.info(f'Test classes: {len(test_dataset.classes)} (unseen during training)')

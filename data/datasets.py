@@ -14,6 +14,7 @@ import torch
 from torch.utils.data import Dataset
 from pathlib import Path
 import glob
+import random
 
 
 class SketchDataset(Dataset):
@@ -168,62 +169,172 @@ class QuickDrawDataset(Dataset):
     """
     
     def __init__(self, root_dir, categories=None, split='train', 
-                 transform=None, max_samples_per_category=10000):
+                 transform=None, max_samples_per_category=10000,
+                 class_split=None, split_seed=42):
         self.root_dir = Path(root_dir)
         self.split = split
         self.transform = transform
+        self.max_samples_per_category = max_samples_per_category
+        self.class_split = class_split
+        self.split_seed = split_seed
         
-        # Default categories if none specified
+        # Detect storage format (npy files or directories with bitmaps)
+        self._npy_files = list(self.root_dir.glob('*.npy'))
+        self.use_numpy_files = len(self._npy_files) > 0
+
         if categories is None:
-            # Get all available categories from .npy files
-            npy_files = list(self.root_dir.glob('*.npy'))
-            categories = [f.stem for f in npy_files]
-        
-        self.categories = sorted(categories)
+            if self.use_numpy_files:
+                categories = [f.stem for f in self._npy_files]
+            else:
+                categories = [
+                    d.name for d in self.root_dir.iterdir()
+                    if d.is_dir()
+                ]
+
+        categories = sorted(categories)
+        if self.class_split:
+            self.split_categories = self._create_class_split(categories)
+            categories = self.split_categories.get(self.split, [])
+        else:
+            self.split_categories = None
+            if self.use_numpy_files:
+                categories = self._filter_missing_numpy(categories)
+            else:
+                categories = self._filter_missing_dirs(categories)
+
+        self.categories = categories
         self.class_to_idx = {cat: idx for idx, cat in enumerate(self.categories)}
+        self.classes = self.categories  # Align attribute name with other datasets
         
-        # Load data from numpy files
+        if self.use_numpy_files:
+            self._load_numpy_data()
+        else:
+            self._load_image_paths()
+
+    def _filter_missing_numpy(self, categories):
+        available = {f.stem for f in self._npy_files}
+        missing = [cat for cat in categories if cat not in available]
+        if missing:
+            print(f"Warning: Missing QuickDraw npy files for: {missing}")
+        return [cat for cat in categories if cat in available]
+
+    def _filter_missing_dirs(self, categories):
+        available_dirs = {
+            d.name for d in self.root_dir.iterdir() if d.is_dir()
+        }
+        missing = [cat for cat in categories if cat not in available_dirs]
+        if missing:
+            print(f"Warning: Missing QuickDraw directories for: {missing}")
+        return [cat for cat in categories if cat in available_dirs]
+
+    def _create_class_split(self, categories):
+        split_map = {'train': [], 'val': [], 'test': []}
+        train_c, val_c, test_c = self.class_split
+        total_needed = train_c + val_c + test_c
+        if total_needed > len(categories):
+            raise ValueError(
+                f"Requested class split ({total_needed}) exceeds available categories ({len(categories)})"
+            )
+        shuffled = categories.copy()
+        random.Random(self.split_seed).shuffle(shuffled)
+        idx = 0
+        split_map['train'] = shuffled[idx:idx + train_c]
+        idx += train_c
+        split_map['val'] = shuffled[idx:idx + val_c]
+        idx += val_c
+        split_map['test'] = shuffled[idx:idx + test_c]
+        return split_map
+    
+    def _init_from_numpy(self, categories):
+        """Configure categories when numpy files are available."""
+        if categories is None:
+            categories = [f.stem for f in self._npy_files]
+        missing = [
+            cat for cat in categories
+            if not (self.root_dir / f"{cat}.npy").exists()
+        ]
+        if missing:
+            print(f"Warning: Missing QuickDraw npy files for: {missing}")
+        return sorted([cat for cat in categories if (self.root_dir / f"{cat}.npy").exists()])
+    
+    def _init_from_image_dirs(self, categories):
+        """Configure categories when data is stored in class directories."""
+        available_dirs = {
+            d.name: d for d in self.root_dir.iterdir() if d.is_dir()
+        }
+        if categories is None:
+            categories = list(available_dirs.keys())
+        missing = [cat for cat in categories if cat not in available_dirs]
+        if missing:
+            print(f"Warning: Missing QuickDraw directories for: {missing}")
+        return sorted([cat for cat in categories if cat in available_dirs])
+    
+    def _split_indices(self, n_samples):
+        """Return start/end indices for the requested split."""
+        train_end = int(0.7 * n_samples)
+        val_end = int(0.85 * n_samples)
+        
+        if self.split == 'train':
+            start_idx, end_idx = 0, min(train_end, self.max_samples_per_category)
+        elif self.split == 'val':
+            start_idx = train_end
+            end_idx = min(val_end, start_idx + self.max_samples_per_category)
+        else:  # test
+            start_idx = val_end
+            end_idx = min(n_samples, start_idx + self.max_samples_per_category)
+        
+        return start_idx, end_idx
+    
+    def _load_numpy_data(self):
+        """Load QuickDraw data stored as numpy arrays."""
         self.data = []
         self.labels = []
         
         for category in self.categories:
             npy_path = self.root_dir / f"{category}.npy"
-            
             if not npy_path.exists():
-                print(f"Warning: {npy_path} not found, skipping...")
                 continue
             
-            # Load numpy array
             category_data = np.load(npy_path)
-            
-            # Split data based on split
-            n_samples = len(category_data)
-            if split == 'train':
-                start_idx = 0
-                end_idx = min(int(0.7 * n_samples), max_samples_per_category)
-            elif split == 'val':
-                start_idx = int(0.7 * n_samples)
-                end_idx = min(int(0.85 * n_samples), start_idx + max_samples_per_category)
-            else:  # test
-                start_idx = int(0.85 * n_samples)
-                end_idx = min(n_samples, start_idx + max_samples_per_category)
-            
+            start_idx, end_idx = self._split_indices(len(category_data))
             category_data = category_data[start_idx:end_idx]
             
-            # Add to dataset
             self.data.append(category_data)
             self.labels.extend([self.class_to_idx[category]] * len(category_data))
         
-        # Concatenate all data
         if len(self.data) > 0:
             self.data = np.concatenate(self.data, axis=0)
         else:
             self.data = np.array([])
-        
         self.labels = np.array(self.labels)
     
+    def _load_image_paths(self):
+        """Load QuickDraw data stored as directories of bitmap images."""
+        self.samples = []
+        
+        for category in self.categories:
+            class_dir = self.root_dir / category
+            if not class_dir.exists():
+                continue
+            
+            image_paths = []
+            for ext in ['*.png', '*.jpg', '*.jpeg', '*.bmp']:
+                image_paths.extend(class_dir.glob(ext))
+            image_paths = sorted(image_paths)
+            
+            start_idx, end_idx = self._split_indices(len(image_paths))
+            image_paths = image_paths[start_idx:end_idx]
+            
+            class_idx = self.class_to_idx[category]
+            for img_path in image_paths:
+                self.samples.append((str(img_path), class_idx))
+        
+        self.labels = np.array([label for _, label in self.samples])
+    
     def __len__(self):
+        if self.use_numpy_files:
         return len(self.data)
+        return len(self.samples)
     
     def __getitem__(self, idx):
         """
@@ -235,12 +346,13 @@ class QuickDrawDataset(Dataset):
         Returns:
             tuple: (image, label)
         """
-        # Get image data (28x28)
+        if self.use_numpy_files:
         img_array = self.data[idx]
         label = self.labels[idx]
-        
-        # Convert to PIL Image
         image = Image.fromarray(img_array.astype(np.uint8), mode='L')
+        else:
+            img_path, label = self.samples[idx]
+            image = Image.open(img_path).convert('L')
         
         # Apply transform
         if self.transform:
